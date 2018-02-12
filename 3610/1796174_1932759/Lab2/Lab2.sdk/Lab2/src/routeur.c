@@ -24,14 +24,14 @@ void timer_isr(void* not_valid) {
 
 void fit_timer_1s_isr(void *not_valid) {
 	uint8_t err;
-	err = OSSemPost(semStop);
-	err_msg("semStop_fit_timer_1s_isr", err);
+	err = OSSemPost(semVerifySrc);
+	err_msg("semVerifySrc_fit_timer_1s_isr", err);
 }
 
 void fit_timer_3s_isr(void *not_valid) {
 	uint8_t err;
-	err = OSSemPost(semStats);
-	err_msg("semStats_fit_timer_3s_isr", err);
+	err = OSSemPost(semVerifyCRC);
+	err_msg("semVerifyCRC_fit_timer_3s_isr", err);
 }
 
 void gpio_isr(void * not_valid) {
@@ -131,8 +131,8 @@ int create_tasks() {
 	static OS_STK TaskPrint3Stk[TASK_STK_SIZE];
 
 	OSTaskCreate(TaskGeneratePacket, NULL, &TaskReceiveStk[TASK_STK_SIZE-1], TASK_GENERATE_PRIO);
-	OSTaskCreate(TaskStop, NULL, &TaskStopStk[TASK_STK_SIZE-1], TASK_STOP_PRIO);
-	OSTaskCreate(TaskReset, NULL, &TaskResetStk[TASK_STK_SIZE-1], TASK_RESET_PRIO);
+	OSTaskCreate(TaskVerifySource, NULL, &TaskStopStk[TASK_STK_SIZE-1], TASK_STOP_PRIO);
+	OSTaskCreate(TaskVerifyCRC, NULL, &TaskResetStk[TASK_STK_SIZE-1], TASK_RESET_PRIO);
 	OSTaskCreate(TaskStats, NULL, &TaskStatsStk[TASK_STK_SIZE-1], TASK_STATS_PRIO);
 	OSTaskCreate(TaskComputing, NULL, &TaskComputeStk[TASK_STK_SIZE-1], TASK_COMPUTING_PRIO);
 	OSTaskCreate(TaskForwarding, NULL, &TaskForwardingStk[TASK_STK_SIZE-1], TASK_FORWARDING_PRIO);
@@ -156,16 +156,15 @@ int create_events() {
 	mediumQ = OSQCreate(&mediumMsg[0], 1024);
 	highQ = OSQCreate(&highMsg[0], 1024);
 
-	semStop = OSSemCreate(0);
-	semReset = OSSemCreate(0);
+	semVerifySrc = OSSemCreate(0);
+	semVerifyCRC = OSSemCreate(0);
 	semStats = OSSemCreate(0);
 
-	mutexPacketCrees = OSMutexCreate(MUTEX_PCREES_PRIO, &err);
-	mutexPacketTraites = OSMutexCreate(MUTEX_PTRAITES_PRIO, &err);
-	mutexPacketSourceRejete = OSMutexCreate(MUTEX_PSOURCEREJETE_PRIO, &err);
-	mutexRunning = OSMutexCreate(MUTEX_RUNNING_PRIO, &err);
-	mutexPrinting = OSMutexCreate(MUTEX_PRINTING_PRIO, &err);
-	mutexMemory = OSMutexCreate(MUTEX_MEMORY_PRIO, &err);
+	mutexPacketSourceRejete = OSMutexCreate(MUT_REJET_PRIO, &err);
+	mutexPacketCRCRejete = OSMutexCreate(MUT_CRC_PRIO, &err);
+	mutexPrinting = OSMutexCreate(MUT_PRINT_PRIO, &err);
+	mutexMemory = OSMutexCreate(MUT_MALLOC_PRIO, &err);
+	mutexPacketTraites = OSMutexCreate(MUT_TRAITES_PRIO,&err);
 
 	return 0;
 }
@@ -262,8 +261,24 @@ void TaskGeneratePacket(void *data) {
  */
 void TaskVerifySource(void *data) {
 	uint8_t err;
-	while (true) {
-		/* À compléter */
+	while(true) {
+		OSSemPend(semVerifySrc, 0, &err);
+
+		err_msg("semVerifySrc", err);
+		OSMutexPend(mutexPacketSourceRejete, 0, &err);
+		err_msg("Pend mutexPacketSourceRejete", err);
+		if (nbPacketSourceRejete >= 200) {
+			OSTaskSuspend(TASK_GENERATE_PRIO);
+			OSTaskSuspend(TASK_COMPUTING_PRIO);
+			OSTaskSuspend(TASK_FORWARDING_PRIO);
+			OSTaskSuspend(TASK_PRINT1_PRIO);
+			OSTaskSuspend(TASK_PRINT2_PRIO);
+			OSTaskSuspend(TASK_PRINT3_PRIO);
+			
+		}
+		err = OSMutexPost(mutexPacketSourceRejete);
+		err_msg("Post mutexPacketSourceRejete", err);
+
 	}
 }
 
@@ -276,8 +291,24 @@ void TaskVerifySource(void *data) {
  */
 void TaskVerifyCRC(void *data) {
 	uint8_t err;
-	while (true) {
-		/* À compléter */
+	while(true) {
+		OSSemPend(semVerifyCRC, 0, &err);
+
+		err_msg("semVerifyCRC", err);
+		OSMutexPend(mutexPacketCRCRejete, 0, &err);
+		err_msg("Pend mutexPacketCRCRejete", err);
+		if (nbPacketCRCRejete >= 200) {
+			OSTaskSuspend(TASK_GENERATE_PRIO);
+			OSTaskSuspend(TASK_COMPUTING_PRIO);
+			OSTaskSuspend(TASK_FORWARDING_PRIO);
+			OSTaskSuspend(TASK_PRINT1_PRIO);
+			OSTaskSuspend(TASK_PRINT2_PRIO);
+			OSTaskSuspend(TASK_PRINT3_PRIO);
+			
+		}
+		err = OSMutexPost(mutexPacketCRCRejete);
+		err_msg("Post mutexPacketCRCRejete", err);
+
 	}
 }
 
@@ -292,11 +323,121 @@ void TaskVerifyCRC(void *data) {
 void TaskComputing(void *pdata) {
 	uint8_t err;
 	Packet *packet = NULL;
-	while (true) {
-		/* À compléter */
+	int waitCnt = 220000;
+	while(true){
+		packet = OSQPend(inputQ, 0, &err);
+		err_msg("inputQ", err);
+
+		while (--waitCnt);
+		waitCnt = 220000;
+
+		if ((packet->src >= REJECT_LOW1 && packet->src <= REJECT_HIGH1)|
+			(packet->src >= REJECT_LOW2 && packet->src <= REJECT_HIGH2)|
+			(packet->src >= REJECT_LOW3 && packet->src <= REJECT_HIGH3)|
+			(packet->src >= REJECT_LOW4 && packet->src <= REJECT_HIGH4)){
+
+			OSMutexPend(mutexPacketSourceRejete, 0, &err);
+			err_msg("Pend mutexPacketSourceRejete", err);
+			nbPacketSourceRejete++;
+			free(packet);
+			err = OSMutexPost(mutexPacketSourceRejete);
+			err_msg("Post mutexPacketSourceRejete", err);
+			
+		}
+		else if (computePacketCRC(packet)!=0){
+			OSMutexPend(mutexPacketCRCRejete, 0, &err);
+			err_msg("Pend mutexPacketCRCRejete", err);
+			nbPacketCRCRejete++;
+			free(packet);
+			err = OSMutexPost(mutexPacketCRCRejete);
+			err_msg("Post mutexPacketCRCRejete", err);
+		}
+		else if (packet->type == PACKET_VIDEO) {
+			err = OSQPost(highQ, packet);
+			if (err == OS_ERR_Q_FULL){
+				OSMutexPend(mutexMemory, 0, &err);
+				err_msg("Pend mutexMemory", err);
+				free(packet);
+				err = OSMutexPost(mutexMemory);
+				err_msg("Post mutexMemory", err);
+				err = OSMutexPost(mutexPrinting);
+				err_msg("Post mutexPrinting", err);
+				xil_printf("Packet_Video rejete, queue full\n");
+				err = OSMutexPost(mutexPrinting);
+				err_msg("Post mutexPrinting", err);
+
+			}
+			else if (err != OS_NO_ERR) {
+				err_msg("highQ", err);
+			}
+			else {
+				OSMutexPend(mutexPacketTraites, 0, &err);
+				err_msg("Pend mutexPacketTraites", err);
+				nbPacketTraites++;
+				err = OSMutexPost(mutexPacketTraites);
+				err_msg("Post mutexPacketTraites", err);
+			}
+		}
+		else if (packet->type == PACKET_AUDIO) {
+			err = OSQPost(mediumQ, packet);
+			if (err == OS_ERR_Q_FULL){
+				OSMutexPend(mutexMemory, 0, &err);
+				err_msg("Pend mutexMemory", err);
+				free(packet);
+				err = OSMutexPost(mutexMemory);
+				err_msg("Post mutexMemory", err);
+				err = OSMutexPost(mutexPrinting);
+				err_msg("Post mutexPrinting", err);
+				xil_printf("Packet audio rejete, queue full\n");
+				err = OSMutexPost(mutexPrinting);
+				err_msg("Post mutexPrinting", err);
+			}
+			else if (err != OS_NO_ERR) {
+				err_msg("mediumQ", err);
+			}
+			else {
+				OSMutexPend(mutexPacketTraites, 0, &err);
+				err_msg("Pend mutexPacketTraites", err);
+				nbPacketTraites++;
+				err = OSMutexPost(mutexPacketTraites);
+				err_msg("Post mutexPacketTraites", err);
+			}
+		}
+		else if (packet->type == PACKET_AUTRE) {
+			err = OSQPost(lowQ, packet);
+			if (err == OS_ERR_Q_FULL){
+				OSMutexPend(mutexMemory, 0, &err);
+				err_msg("Pend mutexMemory", err);
+				free(packet);
+				err = OSMutexPost(mutexMemory);
+				err_msg("Post mutexMemory", err);
+				err = OSMutexPost(mutexPrinting);
+				err_msg("Post mutexPrinting", err);
+				xil_printf("Packet autre rejete queue full\n");
+				err = OSMutexPost(mutexPrinting);
+				err_msg("Post mutexPrinting", err);
+			}
+			else if (err != OS_NO_ERR) {
+				err_msg("lowQ", err);
+			}
+			else {
+				OSMutexPend(mutexPacketTraites, 0, &err);
+				err_msg("Pend mutexPacketTraites", err);
+				nbPacketTraites++;
+				err = OSMutexPost(mutexPacketTraites);
+				err_msg("Post mutexPacketTraites", err);
+			}
+		}
+		else {
+			err = OSMutexPost(mutexPrinting);
+			err_msg("Post mutexPrinting", err);
+			xil_printf("WARNING: Unknown packet type!\n");
+			err = OSMutexPost(mutexPrinting);
+			err_msg("Post mutexPrinting", err);
+		}
+
 	}
 }
-
 /*
  *********************************************************************************************************
  *											  TaskForwarding
