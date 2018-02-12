@@ -82,36 +82,42 @@ OS_EVENT *highQ;
  *                  Semaphores
  **************************************************/
 
-/* � compl�ter */
+OS_EVENT* semStop;
+OS_EVENT* semReset;
+OS_EVENT* semStats;
 
 /* ************************************************
  *                  Mutexes
  **************************************************/
-
-/* � compl�ter */
+OS_EVENT* mutexPacketCrees;
+OS_EVENT* mutexPacketTraites;
+OS_EVENT* mutexPacketSourceRejete;
+OS_EVENT* mutexRunning;
+OS_EVENT* mutexPrinting;
+OS_EVENT* mutexMemory;
 
 /* ************************************************
  *            Variables pour statistiques
  **************************************************/
 
-int mode_profilage; // Indique si nous sommes dans la p�riode de profilage ou non
+int mode_profilage; // Indique si nous sommes dans la période de profilage ou non
 
-int nb_echantillons; // Nb. d'�chantillons de la p�riode de profilage
+int nb_echantillons; // Nb. d'échantillons de la période de profilage
 
 int max_msg_input; // Maximum de nombre d'items dans la file atteint durant
-int max_msg_low;	// la p�riode de profilage
+int max_msg_low;	// la période de profilage
 int max_msg_medium;
 int max_msg_high;
 
 int moyenne_msg_input; // Moyenne d'items dans la file atteint durant
-int moyenne_msg_low;	// la p�riode de profilage
+int moyenne_msg_low;	// la période de profilage
 int moyenne_msg_medium;
 int moyenne_msg_high;
 
-int nbPacketCrees = 0; // Nb de packets total créés
-int nbPacketTraites = 0;	// Nb de paquets envoyés sur une interface
-int nbPacketSourceRejete = 0; // Nb de packets rejetés pour mauvaise source
-int nbPacketCRCRejete = 0; // Nb de packets rejetés pour mauvais CRC
+int nbPacketCrees = 0; // Nb de packets total crÃ©Ã©s
+int nbPacketTraites = 0;	// Nb de paquets envoyÃ©s sur une interface
+int nbPacketSourceRejete = 0; // Nb de packets rejetÃ©s pour mauvaise source
+int nbPacketCRCRejete = 0; // Nb de packets rejetÃ©s pour mauvais CRC
 
 /* ************************************************
  *              TASK PROTOTYPES

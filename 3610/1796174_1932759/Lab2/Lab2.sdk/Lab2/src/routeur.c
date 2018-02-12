@@ -23,15 +23,20 @@ void timer_isr(void* not_valid) {
 }
 
 void fit_timer_1s_isr(void *not_valid) {
-	/* À compléter */
+	uint8_t err;
+	err = OSSemPost(semStop);
+	err_msg("semStop_fit_timer_1s_isr", err);
 }
 
 void fit_timer_3s_isr(void *not_valid) {
-	/* À compléter */
+	uint8_t err;
+	err = OSSemPost(semStats);
+	err_msg("semStats_fit_timer_3s_isr", err);
 }
 
 void gpio_isr(void * not_valid) {
-	/* À compléter */
+	OSSemPost(semReset);
+	XGpio_InterruptClear(&gpSwitch, 0xFFFFFFFF);
 }
 
 /*
@@ -125,8 +130,16 @@ int create_tasks() {
 	static OS_STK TaskPrint2Stk[TASK_STK_SIZE];
 	static OS_STK TaskPrint3Stk[TASK_STK_SIZE];
 
-	/* À compléter */
-
+	OSTaskCreate(TaskGeneratePacket, NULL, &TaskReceiveStk[TASK_STK_SIZE-1], TASK_GENERATE_PRIO);
+	OSTaskCreate(TaskStop, NULL, &TaskStopStk[TASK_STK_SIZE-1], TASK_STOP_PRIO);
+	OSTaskCreate(TaskReset, NULL, &TaskResetStk[TASK_STK_SIZE-1], TASK_RESET_PRIO);
+	OSTaskCreate(TaskStats, NULL, &TaskStatsStk[TASK_STK_SIZE-1], TASK_STATS_PRIO);
+	OSTaskCreate(TaskComputing, NULL, &TaskComputeStk[TASK_STK_SIZE-1], TASK_COMPUTING_PRIO);
+	OSTaskCreate(TaskForwarding, NULL, &TaskForwardingStk[TASK_STK_SIZE-1], TASK_FORWARDING_PRIO);
+	OSTaskCreate(TaskPrint, &print_param[0], &TaskPrint1Stk[TASK_STK_SIZE-1], TASK_PRINT1_PRIO);
+	OSTaskCreate(TaskPrint, &print_param[1], &TaskPrint2Stk[TASK_STK_SIZE-1], TASK_PRINT2_PRIO);
+	OSTaskCreate(TaskPrint, &print_param[2], &TaskPrint3Stk[TASK_STK_SIZE-1], TASK_PRINT3_PRIO);
+	
 	return 0;
 }
 
@@ -138,7 +151,21 @@ int create_events() {
 	static void* mediumMsg[1024];
 	static void* highMsg[1024];
 
-	/* À compléter: création des files, mailbox, sémaphores et mutex */
+	inputQ = OSQCreate(&inputMsg[0], 1024);
+	lowQ = OSQCreate(&lowMsg[0], 1024);
+	mediumQ = OSQCreate(&mediumMsg[0], 1024);
+	highQ = OSQCreate(&highMsg[0], 1024);
+
+	semStop = OSSemCreate(0);
+	semReset = OSSemCreate(0);
+	semStats = OSSemCreate(0);
+
+	mutexPacketCrees = OSMutexCreate(MUTEX_PCREES_PRIO, &err);
+	mutexPacketTraites = OSMutexCreate(MUTEX_PTRAITES_PRIO, &err);
+	mutexPacketSourceRejete = OSMutexCreate(MUTEX_PSOURCEREJETE_PRIO, &err);
+	mutexRunning = OSMutexCreate(MUTEX_RUNNING_PRIO, &err);
+	mutexPrinting = OSMutexCreate(MUTEX_PRINTING_PRIO, &err);
+	mutexMemory = OSMutexCreate(MUTEX_MEMORY_PRIO, &err);
 
 	return 0;
 }
@@ -154,18 +181,18 @@ int create_events() {
 /*
  *********************************************************************************************************
  *											  TaskGeneratePacket
- *  - Génère des paquets et les envoie dans la InputQ.
- *  - À des fins de développement de votre application, vous pouvez *temporairement* modifier la variable
- *    "shouldSlowthingsDown" à  true pour ne générer que quelques paquets par seconde, et ainsi pouvoir
- *    déboguer le flot de vos paquets de manière plus saine d'esprit. Cependant, la correction sera effectuée
- *    avec cette variable Ã  false.
+ *  - GÃ©nÃ¨re des paquets et les envoie dans la InputQ.
+ *  - Ã€ des fins de dÃ©veloppement de votre application, vous pouvez *temporairement* modifier la variable
+ *    "shouldSlowthingsDown" Ã Â  true pour ne gÃ©nÃ©rer que quelques paquets par seconde, et ainsi pouvoir
+ *    dÃ©boguer le flot de vos paquets de maniÃ¨re plus saine d'esprit. Cependant, la correction sera effectuÃ©e
+ *    avec cette variable ÃƒÂ  false.
  *********************************************************************************************************
  */
 void TaskGeneratePacket(void *data) {
 	srand(42);
 	uint8_t err;
 	bool isGenPhase = true; 					// Indique si on est dans la phase de generation ou non
-	const bool shouldSlowThingsDown = true;		// Variable à modifier
+	const bool shouldSlowThingsDown = true;		// Variable Ã  modifier
 	int packGenQty = (rand() % 250);
 	while (true) {
 		if (isGenPhase) {
@@ -189,7 +216,7 @@ void TaskGeneratePacket(void *data) {
 			nbPacketCrees++;
 
 			if (shouldSlowThingsDown) {
-				xil_printf("GENERATE : ********GÃ©nÃ©ration du Paquet # %d ******** \n", nbPacketCrees);
+				xil_printf("GENERATE : ********GÃƒÂ©nÃƒÂ©ration du Paquet # %d ******** \n", nbPacketCrees);
 				xil_printf("ADD %x \n", packet);
 				xil_printf("	** src : %x \n", packet->src);
 				xil_printf("	** dst : %x \n", packet->dst);
@@ -201,7 +228,7 @@ void TaskGeneratePacket(void *data) {
 
 			if (err == OS_ERR_Q_FULL) {
 				xil_printf(
-						"GENERATE: Paquet rejeté a l'entrée car la FIFO est pleine !\n");
+						"GENERATE: Paquet rejetÃ© a l'entrÃ©e car la FIFO est pleine !\n");
 				free(packet);
 			}
 
@@ -210,7 +237,7 @@ void TaskGeneratePacket(void *data) {
 			} else {
 				OSTimeDlyHMSM(0, 0, 0, 2);
 
-				if ((nbPacketCrees % packGenQty) == 0) //On génère jusqu'à 250 paquets par phase de génération
+				if ((nbPacketCrees % packGenQty) == 0) //On gÃ©nÃ¨re jusqu'Ã  250 paquets par phase de gÃ©nÃ©ration
 						{
 					isGenPhase = false;
 				}
@@ -220,7 +247,7 @@ void TaskGeneratePacket(void *data) {
 			isGenPhase = true;
 			packGenQty = (rand() % 250);
 			xil_printf(
-					"GENERATE: Génération de %d paquets durant les %d prochaines millisecondes\n",
+					"GENERATE: GÃ©nÃ©ration de %d paquets durant les %d prochaines millisecondes\n",
 					packGenQty, packGenQty * 2);
 		}
 	}
@@ -229,35 +256,35 @@ void TaskGeneratePacket(void *data) {
 /*
  *********************************************************************************************************
  *											  TaskVerifySource
- *  -Stoppe le routeur une fois que 200 paquets ont été rejetés pour mauvaise source
- *  -Ne doit pas stopper la tâche d'affichage des statistiques.
+ *  -Stoppe le routeur une fois que 200 paquets ont Ã©tÃ© rejetÃ©s pour mauvaise source
+ *  -Ne doit pas stopper la tÃ¢che d'affichage des statistiques.
  *********************************************************************************************************
  */
 void TaskVerifySource(void *data) {
 	uint8_t err;
 	while (true) {
-		/* À compléter */
+		/* Ã€ complÃ©ter */
 	}
 }
 
 /*
  *********************************************************************************************************
  *											  TaskVerifyCRC
- *  -Stoppe le routeur une fois que 200 paquets ont été rejetés pour mauvais CRC
- *  -Ne doit pas stopper la tâche d'affichage des statistiques.
+ *  -Stoppe le routeur une fois que 200 paquets ont Ã©tÃ© rejetÃ©s pour mauvais CRC
+ *  -Ne doit pas stopper la tÃ¢che d'affichage des statistiques.
  *********************************************************************************************************
  */
 void TaskVerifyCRC(void *data) {
 	uint8_t err;
 	while (true) {
-		/* À compléter */
+		/* Ã€ complÃ©ter */
 	}
 }
 
 /*
  *********************************************************************************************************
  *											  TaskComputing
- *  -Vérifie si les paquets sont conformes (CRC,Adresse Source)
+ *  -VÃ©rifie si les paquets sont conformes (CRC,Adresse Source)
  *  -Dispatche les paquets dans des files (HIGH,MEDIUM,LOW)
  *
  *********************************************************************************************************
@@ -266,37 +293,37 @@ void TaskComputing(void *pdata) {
 	uint8_t err;
 	Packet *packet = NULL;
 	while (true) {
-		/* À compléter */
+		/* Ã€ complÃ©ter */
 	}
 }
 
 /*
  *********************************************************************************************************
  *											  TaskForwarding
- *  -Traite la priorité des paquets : si un paquet de haute priorité est prêt,
- *   on l'envoie à l'aide de la fonction dispatch, sinon on regarde les paquets de moins haute priorité
+ *  -Traite la prioritÃ© des paquets : si un paquet de haute prioritÃ© est prÃªt,
+ *   on l'envoie Ã  l'aide de la fonction dispatch, sinon on regarde les paquets de moins haute prioritÃ©
  *********************************************************************************************************
  */
 void TaskForwarding(void *pdata) {
 	uint8_t err;
 	Packet *packet = NULL;
 	while (true) {
-		/* À compléter */
+		/* Ã€ complÃ©ter */
 	}
 }
 
 /*
  *********************************************************************************************************
  *                                              TaskStats
- *  -Est déclenchée lorsque le gpio_isr() libère le sémpahore
+ *  -Est dÃ©clenchÃ©e lorsque le gpio_isr() libÃ¨re le sÃ©mpahore
  *  -Si en mode profilage, calcule les statistiques des files
- *  -En sortant de la période de profilage, affiche les statistiques des files et du routeur.
+ *  -En sortant de la pÃ©riode de profilage, affiche les statistiques des files et du routeur.
  *********************************************************************************************************
  */
 void TaskStats(void *pdata) {
 	uint8_t err;
 	while (true) {
-		/* À compléter */
+		/* Ã€ complÃ©ter */
 
 		xil_printf("\n------------------ Affichage des statistiques ------------------\n");
 		xil_printf("Nb de packets total traites : %d\n", nbPacketCrees);
@@ -304,7 +331,7 @@ void TaskStats(void *pdata) {
 		xil_printf("Nb de packets rejetes pour mauvaise source : %d\n",	nbPacketSourceRejete);
 		xil_printf("Nb de packets rejetes pour mauvais crc : %d\n",	nbPacketCRCRejete);
 
-		xil_printf("Nb d'echantillons de la période de profilage : %d\n", nb_echantillons);
+		xil_printf("Nb d'echantillons de la pÃ©riode de profilage : %d\n", nb_echantillons);
 		xil_printf("Maximum file input : %d\n", max_msg_input);
 		xil_printf("Moyenne file input : %d\n", moyenne_msg_input);
 		xil_printf("Maximum file low : %d\n", max_msg_low);
@@ -314,14 +341,14 @@ void TaskStats(void *pdata) {
 		xil_printf("Maximum file high : %d\n", max_msg_high);
 		xil_printf("Moyenne file high : %d\n", moyenne_msg_high);
 
-		/* À compléter */
+		/* Ã€ complÃ©ter */
 	}
 }
 
 /*
  *********************************************************************************************************
  *											  TaskPrint
- *  -Affiche les infos des paquets arrivés Ã  destination et libere la mémoire allouée
+ *  -Affiche les infos des paquets arrivÃ©s ÃƒÂ  destination et libere la mÃ©moire allouÃ©e
  *********************************************************************************************************
  */
 void TaskPrint(void *data) {
@@ -331,7 +358,7 @@ void TaskPrint(void *data) {
 	OS_EVENT* mb = ((PRINT_PARAM*) data)->Mbox;
 
 	while (true) {
-		/* À compléter */
+		/* Ã€ complÃ©ter */
 	}
 
 }
@@ -339,6 +366,6 @@ void TaskPrint(void *data) {
 void err_msg(char* entete, uint8_t err) {
 	if (err != 0) {
 		xil_printf(entete);
-		xil_printf(": Une erreur est retournée : code %d \n", err);
+		xil_printf(": Une erreur est retournÃ©e : code %d \n", err);
 	}
 }
