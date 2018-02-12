@@ -92,6 +92,7 @@ OS_EVENT* semStats;
 OS_EVENT* mutexPacketCrees;
 OS_EVENT* mutexPacketTraites;
 OS_EVENT* mutexPacketSourceRejete;
+OS_EVENT* mutexPacketCRCRejete;
 OS_EVENT* mutexRunning;
 OS_EVENT* mutexPrinting;
 OS_EVENT* mutexMemory;
