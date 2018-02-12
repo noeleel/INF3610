@@ -451,44 +451,44 @@ void TaskForwarding(void *pdata) {
 	while (true) {
 		/* À compléter */
 		packet = OSQAccept(highQ, &err);
-		err_msg("error reception highQ", err);
+		err_msg("Error accepting queue", err);
 		if (packet == NULL) {
 			packet = OSQAccept(mediumQ, &err);
-			err_msg(err);
+			err_msg("Error accepting queue", err);
 		}
 		if (packet == NULL) {
 			packet = OSQAccept(lowQ, &err);
-			err_msg(err);
+			err_msg("Error accepting queue", err);
 		}
 		else if (packet != NULL) {
 			if (packet->dst >= INT1_LOW && packet->dst <= INT1_HIGH) {
 				err = OSMboxPost(mbox[0], packet);
-				err_msg(err);
+				err_msg("Error posting mbox", err);
 			}
 			else if (packet->dst >= INT2_LOW && packet->dst <= INT2_HIGH) {
 				err = OSMboxPost(mbox[1], packet);
-				err_msg(err);
+				err_msg("Error posting mbox", err);
 			}
 			else if (packet->dst >= INT3_LOW && packet->dst <= INT3_HIGH) {
 				err = OSMboxPost(mbox[2], packet);
-				err_msg(err);
+				err_msg("Error posting mbox", err);
 			}
 			else if (packet->dst >= INT_BC_LOW && packet->dst <= INT_BC_HIGH) {
-				OSMutexPend(mutexPacketCrees, 0, &err);
-				err_msg(err);
+				OSMutexPend(mutexMemory, 0, &err);
+				err_msg("Error accepting mutex", err);
 				Packet *packet2 = malloc(sizeof(Packet));
 				*packet2 = *packet;
 				Packet *packet3 = malloc(sizeof(Packet));
 				*packet3 = *packet;
-				err = OSMutexPost(mutexPacketCrees);
-				err_msg(err);
+				err = OSMutexPost(mutexMemory);
+				err_msg("Error posting mutex", err);
 				
 				err = OSMboxPost(mbox[0], packet);
-				err_msg(err);
+				err_msg("Error posting mbox", err);
 				err = OSMboxPost(mbox[1], packet2);
-				err_msg(err);
+				err_msg("Error posting mbox", err);
 				err = OSMboxPost(mbox[2], packet3);
-				err_msg(err);
+				err_msg("Error posting mbox", err);
 			}
 		}
 	}
