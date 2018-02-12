@@ -309,6 +309,47 @@ void TaskForwarding(void *pdata) {
 	Packet *packet = NULL;
 	while (true) {
 		/* À compléter */
+		packet = OSQAccept(highQ, &err);
+		err_msg("error reception highQ", err);
+		if (packet == NULL) {
+			packet = OSQAccept(mediumQ, &err);
+			err_msg(err);
+		}
+		if (packet == NULL) {
+			packet = OSQAccept(lowQ, &err);
+			err_msg(err);
+		}
+		else if (packet != NULL) {
+			if (packet->dst >= INT1_LOW && packet->dst <= INT1_HIGH) {
+				err = OSMboxPost(mbox[0], packet);
+				err_msg(err);
+			}
+			else if (packet->dst >= INT2_LOW && packet->dst <= INT2_HIGH) {
+				err = OSMboxPost(mbox[1], packet);
+				err_msg(err);
+			}
+			else if (packet->dst >= INT3_LOW && packet->dst <= INT3_HIGH) {
+				err = OSMboxPost(mbox[2], packet);
+				err_msg(err);
+			}
+			else if (packet->dst >= INT_BC_LOW && packet->dst <= INT_BC_HIGH) {
+				OSMutexPend(mutexPacketCrees, 0, &err);
+				err_msg(err);
+				Packet *packet2 = malloc(sizeof(Packet));
+				*packet2 = *packet;
+				Packet *packet3 = malloc(sizeof(Packet));
+				*packet3 = *packet;
+				err = OSMutexPost(mutexPacketCrees);
+				err_msg(err);
+				
+				err = OSMboxPost(mbox[0], packet);
+				err_msg(err);
+				err = OSMboxPost(mbox[1], packet2);
+				err_msg(err);
+				err = OSMboxPost(mbox[2], packet3);
+				err_msg(err);
+			}
+		}
 	}
 }
 
