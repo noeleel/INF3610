@@ -211,6 +211,42 @@ int connect_timer_irq() {
 	return XST_SUCCESS;
 }
 
+int connect_fit_timer_1s_irq() {
+	int status;
+
+	status = XIntc_Connect(&axi_intc, FIT_1S_IRQ_ID, fit_timer_1s_isr, NULL);
+	if (status != XST_SUCCESS)
+		return status;
+
+	XIntc_Enable(&axi_intc, FIT_1S_IRQ_ID);
+
+	return XST_SUCCESS;
+}
+
+int connect_fit_timer_3s_irq() {
+	int status;
+
+	status = XIntc_Connect(&axi_intc, FIT_3S_IRQ_ID, fit_timer_3s_isr, NULL);
+	if (status != XST_SUCCESS)
+		return status;
+
+	XIntc_Enable(&axi_intc, FIT_3S_IRQ_ID);
+
+	return XST_SUCCESS;
+}
+
+int connect_gpio_irq() {
+	int status;
+
+	status = XIntc_Connect(&axi_intc, GPIO_SW_IRQ_ID, gpio_isr, NULL);
+	if (status != XST_SUCCESS)
+		return status;
+
+	XIntc_Enable(&axi_intc, GPIO_SW_IRQ_ID);
+
+	return XST_SUCCESS;
+}
+
 void cleanup() {
 	/*
 	 * Disconnect and disable the interrupt
@@ -231,6 +267,22 @@ void disconnect_intc_irq() {
 	XScuGic_Disable(&gic, PL_INTC_IRQ_ID);
 	XScuGic_Disconnect(&gic, PL_INTC_IRQ_ID);
 }
+
+void disconnect_fit_timer_1s_irq() {
+	XIntc_Disable(&axi_intc, FIT_1S_IRQ_ID);
+	XIntc_Disconnect(&axi_intc, FIT_1S_IRQ_ID);
+}
+
+void disconnect_fit_timer_3s_irq() {
+	XIntc_Disable(&axi_intc, FIT_3S_IRQ_ID);
+	XIntc_Disconnect(&axi_intc, FIT_3S_IRQ_ID);
+}
+
+void disconnect_gpio_irq() {
+	XIntc_Disable(&axi_intc, GPIO_SW_IRQ_ID);
+	XIntc_Disconnect(&axi_intc, GPIO_SW_IRQ_ID);
+}
+
 
 ///////////////////////////////////////////////////////////////////////////
 //						End of Interrupt Section
