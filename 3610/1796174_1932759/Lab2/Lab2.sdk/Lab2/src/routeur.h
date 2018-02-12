@@ -11,9 +11,9 @@
  **************************************************/
 
 #define          TASK_GENERATE_PRIO        10
-#define 		 TASK_STOP_PRIO            7
-#define 		 TASK_RESET_PRIO           8
-#define			 TASK_STATS_PRIO		   9
+#define 	 TASK_STOP_PRIO            7
+#define 	 TASK_RESET_PRIO           8
+#define		 TASK_STATS_PRIO	   9
 #define          TASK_COMPUTING_PRIO       14
 #define          TASK_FORWARDING_PRIO      16
 #define          TASK_PRINT1_PRIO          11
