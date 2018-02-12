@@ -495,11 +495,27 @@ void TaskStats(void *pdata) {
 void TaskPrint(void *data) {
 	uint8_t err;
 	Packet *packet = NULL;
-	int intID = ((PRINT_PARAM*) data)->interfaceID;
-	OS_EVENT* mb = ((PRINT_PARAM*) data)->Mbox;
+	int intID = ((PRINT_PARAM*)data)->interfaceID;
+	OS_EVENT* mb = ((PRINT_PARAM*)data)->Mbox;
 
-	while (true) {
-		/* À compléter */
+	while(true){
+		packet = OSMboxPend(mb, 0, &err);
+		err_msg("OSMboxPend TaskPrint", err);
+
+		if (packet != NULL) {
+			OSMutexPend(mutexPrinting, 0, &err);
+			err_msg("mutexPrinting", err);
+			xil_printf("INT %d - SRC %08x - DST %08x - TYPE %d - CRC  %d - DATA %x\n", intID, packet->src, packet->dst, packet->type, packet->crc, packet->data);
+			err = OSMutexPost(mutexPrinting);
+			err_msg("mutexPrinting", err);
+
+			OSMutexPend(mutexMemory, 0, &err);
+			err_msg("mutexMemory", err);
+			free(packet);
+			err = OSMutexPost(mutexMemory);
+			err_msg("mutexMemory", err);
+		}
+
 	}
 
 }
