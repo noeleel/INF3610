@@ -38,7 +38,18 @@ void initialize_timer() {
 
 void initialize_gpio()
 {
-	/* À compléter */
+	// voir xgpio.h
+	int status;
+	status = XGpio_Initialize(&gpSwitch, GPIO_SW_DEVICE_ID);
+
+	if (status != XST_SUCCESS) {
+		xil_printf("Error %d while initializing the GPIO\n", status);
+		return XST_FAILURE;
+	}
+
+	XGpio_InterruptGlobalEnable(&gpSwitch);
+	XGpio_InterruptEnable(&gpSwitch, 0xFFFFFFFFF);
+
 }
 
 
@@ -146,7 +157,17 @@ int connect_irqs() {
 	if (status != XST_SUCCESS)
 		return XST_FAILURE;
 
-	/* À compléter */
+	status = connect_fit_timer_1s_irq();
+	if (status != XST_SUCCESS)
+		return XST_FAILURE;
+
+	status = connect_fit_timer_3s_irq();
+	if (status != XST_SUCCESS)
+		return XST_FAILURE;
+
+	status = connect_gpio_irq();
+	if (status != XST_SUCCESS)
+		return XST_FAILURE;
 
 	return XST_SUCCESS;
 }
@@ -196,7 +217,9 @@ void cleanup() {
 	 */
 	disconnect_timer_irq();
 	disconnect_intc_irq();
-	/* À compléter */
+	disconnect_fit_timer_1s_irq();
+	disconnect_fit_timer_3s_irq();
+	disconnect_gpio_irq();
 }
 
 void disconnect_timer_irq() {
