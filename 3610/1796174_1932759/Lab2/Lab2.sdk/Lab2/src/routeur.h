@@ -11,18 +11,20 @@
  **************************************************/
 
 #define          TASK_GENERATE_PRIO        10
-#define 	 TASK_STOP_PRIO            7
-#define 	 TASK_RESET_PRIO           8
-#define		 TASK_STATS_PRIO	   9
+#define 		TASK_STOP_PRIO            7
+#define 		TASK_RESET_PRIO           8
+#define		 	TASK_STATS_PRIO	   	  9
 #define          TASK_COMPUTING_PRIO       14
 #define          TASK_FORWARDING_PRIO      16
 #define          TASK_PRINT1_PRIO          11
 #define          TASK_PRINT2_PRIO          12
 #define          TASK_PRINT3_PRIO          13
+
 #define          MUT_PRINT_PRIO            6
 #define          MUT_REJET_PRIO            5
 #define          MUT_MALLOC_PRIO           4
 #define          MUT_CRC_PRIO              2
+#define 	 MUT_TRAITES_PRIO	   1
 
 // Routing info.
 #define INT1_LOW      0x00000000
@@ -82,20 +84,19 @@ OS_EVENT *highQ;
  *                  Semaphores
  **************************************************/
 
-OS_EVENT* semStop;
-OS_EVENT* semReset;
+OS_EVENT* semVerifySrc;
 OS_EVENT* semStats;
+OS_EVENT* semVerifyCRC;
 
 /* ************************************************
  *                  Mutexes
  **************************************************/
-OS_EVENT* mutexPacketCrees;
-OS_EVENT* mutexPacketTraites;
 OS_EVENT* mutexPacketSourceRejete;
+OS_EVENT* mutexPacketTraites;
 OS_EVENT* mutexPacketCRCRejete;
-OS_EVENT* mutexRunning;
 OS_EVENT* mutexPrinting;
 OS_EVENT* mutexMemory;
+
 
 /* ************************************************
  *            Variables pour statistiques
